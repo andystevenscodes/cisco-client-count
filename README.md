@@ -215,6 +215,7 @@ After a change: `sudo docker compose up -d`.
 | `TELEMETRY_PORT` | `57500` | Port the controller sends to |
 | `WEB_PORT` | `8080` | Port of the web interface |
 | `ALLOWED_WLC_SOURCES` | empty | Addresses or networks that may send telemetry |
+| `DOCKER_SUBNET` | `192.168.237.0/24` | Address range of the project's internal Docker network |
 | `TZ` | `Europe/Amsterdam` | Time zone of the `*_local` columns and the logs |
 | `COUNT_STATES` | `client-status-run` | Client states that count as connected |
 | `CYCLE_GAP_SECONDS` | `5` | Quiet time that ends an update |
@@ -290,6 +291,7 @@ sudo docker compose exec db psql -U ccc ccc -c "DELETE FROM ap_client_count WHER
 | Symptom | Look at |
 |---|---|
 | Nothing under Raw data | On the controller: `show telemetry ietf subscription 2101 receiver`. `Connecting` means the server is not reachable on TCP 57500 (firewall, routing, wrong source address). |
+| Receiver stays `Connecting` although the port is open | `tcpdump -ni any tcp port 57500` on the server shows the controller's SYN packets without an answer: a Docker network on the server overlaps with the controller's address. Check with `ip route get <controller-ip>`; if it says `dev br-...` or `dev docker0`, see [the note on address ranges](docs/install-ubuntu.md#docker-address-range). |
 | Subscription `Invalid` | The YANG interface is not running (`show netconf-yang status`), or the xpath has a typo. |
 | Messages arrive, no count | Dashboard → Telemetry streams: the path must be `…client-oper-data/common-oper-data`. Other paths are received but not counted. |
 | Counts lower than the controller shows | Translation → step 3 lists the clients per state. Only `client-status-run` counts by default. |

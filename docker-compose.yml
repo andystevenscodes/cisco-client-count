@@ -42,3 +42,13 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
+
+networks:
+  default:
+    # A fixed range for the two containers. Left to itself Docker picks one from
+    # 172.17-172.31, which can be the very range the controller sends from; the
+    # server then answers into its own bridge and the connection never comes up.
+    # Change DOCKER_SUBNET when this range is in use in your network.
+    ipam:
+      config:
+        - subnet: "${DOCKER_SUBNET:-192.168.237.0/24}"

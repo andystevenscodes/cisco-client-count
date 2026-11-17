@@ -126,6 +126,45 @@ is reachable regardless of `ufw` rules; bind to `127.0.0.1` or to one interface
 address (`WEB_BIND`, `DB_BIND`) when it must not be reachable, or filter in the
 network in front of the server.
 
+## Docker address range
+
+The two containers talk over an internal Docker network. The project gives it a
+fixed range, `192.168.237.0/24`, instead of letting Docker choose one from
+172.17 to 172.31: controllers often live in exactly those ranges, and a server
+that has, say, 172.20.0.0/16 as a local Docker network sends its answers to a
+controller at 172.20.7.10 into that bridge instead of back onto the network.
+The symptom is a receiver that stays `Connecting` while the server does see the
+connection attempts arrive.
+
+If `192.168.237.0/24` is in use in your network, set another range in `.env`:
+
+```
+DOCKER_SUBNET=192.168.90.0/24
+```
+
+and recreate the network:
+
+```bash
+sudo docker compose down && sudo docker compose up -d
+```
+
+To check whether any Docker network on the server overlaps with the controller:
+
+```bash
+ip route get <controller-ip>
+```
+
+The answer must name the server's network interface, not `docker0` or `br-...`.
+If it names a bridge of another project, give that project another range, or add
+a more specific route for the controller:
+
+```bash
+sudo ip route add <controller-ip>/32 via <default-gateway>
+```
+
+(That route is gone after a reboot unless it is added to the network
+configuration of the server.)
+
 ## 6. Connect the controller
 
 Continue with [wlc-setup.md](wlc-setup.md), or try the tool first with the
