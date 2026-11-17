@@ -1,6 +1,6 @@
 """The path from telemetry bytes to a count, without a database or a network."""
 
-from ccc import decode, translate
+from ccc import decode, patterns, translate
 from ccc.config import Config
 from ccc.pb import telemetry_pb2
 from ccc.pipeline import Pipeline
@@ -215,3 +215,22 @@ def test_source_filter():
     assert config.source_allowed("192.0.2.7")
     assert not config.source_allowed("192.0.2.8")
     assert Config({}).source_allowed("203.0.113.1")
+
+
+def test_filter_syntax():
+    like = patterns.like_patterns
+    assert like("AP-FORUM-2*") == ["AP-FORUM-2%"]          # starts with
+    assert like("*-2??") == ["%-2__"]                      # wildcards anchor the match
+    assert like("forum floor 2") == ["%forum floor 2%"]    # no wildcard: anywhere
+    assert like(" AP-A-1* ,AP-B-1*,, ") == ["AP-A-1%", "AP-B-1%"]
+    assert like("") == [] and like("  ,  ") == []
+    # characters that mean something to LIKE are taken literally
+    assert like("AP_50%*") == ["AP\\_50\\%%"]
+    assert patterns.normalize("  AP-A-1*,AP-B-1* ") == "AP-A-1*, AP-B-1*"
+
+
+def test_filter_looks_at_name_location_tag_and_controller():
+    sql = patterns.match_sql("a", "%s")
+    for column in ("a.ap_name", "a.location", "a.site_tag", "a.wlc"):
+        assert f"{column} ILIKE ANY (%s)" in sql
+    assert patterns.match_sql("", "%s", ["ap_name", "wlc"]) == "(ap_name ILIKE ANY (%s) OR wlc ILIKE ANY (%s))"

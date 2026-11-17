@@ -9,8 +9,32 @@
   <a href="{{ url_for('raw') }}">Raw data</a>.
 </div>
 
+<div class="card">
+  <div class="row">
+    <div class="field grow">
+      <label for="filter">Filter on access point, location, site tag or controller</label>
+      <input type="search" id="filter" placeholder="AP-FORUM-2*   or   forum floor 2" autocomplete="off" spellcheck="false">
+    </div>
+    <button type="button" id="filter-clear" hidden>Clear</button>
+    <button type="button" id="group-open" hidden>Save as group</button>
+  </div>
+  <p class="hint">
+    <code>*</code> stands for any text and <code>?</code> for one character: <code>AP-FORUM-2*</code> is every name starting with AP-FORUM-2.
+    Without a wildcard the text may appear anywhere. A comma separates alternatives. Everything below follows the filter.
+  </p>
+  <form class="row" id="group-form" hidden>
+    <div class="field">
+      <label for="group-name">Name of the group</label>
+      <input type="text" id="group-name" maxlength="60" placeholder="Forum floor 2" autocomplete="off">
+    </div>
+    <button class="primary" type="submit">Save</button>
+    <button type="button" id="group-cancel">Cancel</button>
+    <span class="error" id="group-error" role="alert"></span>
+  </form>
+</div>
+
 <div class="tiles">
-  <div class="tile"><div class="label">Connected clients</div><div class="value" id="t-clients">–</div><div class="note" id="t-clients-note">&nbsp;</div></div>
+  <div class="tile"><div class="label" id="t-clients-label">Connected clients</div><div class="value" id="t-clients">–</div><div class="note" id="t-clients-note">&nbsp;</div></div>
   <div class="tile"><div class="label">Access points</div><div class="value" id="t-aps">–</div><div class="note" id="t-aps-note">&nbsp;</div></div>
   <div class="tile"><div class="label">Controllers streaming</div><div class="value" id="t-wlcs">–</div><div class="note" id="t-wlcs-note">&nbsp;</div></div>
   <div class="tile"><div class="label">Last count</div><div class="value" id="t-last">–</div><div class="note" id="t-last-note">&nbsp;</div></div>
@@ -37,8 +61,8 @@
   <div class="row between">
     <h2>Per access point <span class="muted" id="table-note"></span></h2>
     <div class="row">
-      <input type="search" id="filter" placeholder="Filter on name, location, tag" aria-label="Filter access points">
-      <a class="button" href="/export/ap-counts.csv?days=1">CSV, last 24 h</a>
+      <label class="row small" for="hide-empty"><input type="checkbox" id="hide-empty"> Hide access points without clients</label>
+      <a class="button" id="csv" href="/export/ap-counts.csv?days=1">CSV, last 24 h</a>
     </div>
   </div>
   <div class="table-wrap">
@@ -57,6 +81,18 @@
     <div class="empty" id="aps-empty" hidden>Nothing counted yet.</div>
   </div>
   <p class="hint">Click a row for the history of that access point.</p>
+</div>
+
+<div class="card">
+  <h2>Groups</h2>
+  <p class="muted">A group is a saved filter with a name, for example one floor of a building. Click a group to apply it.</p>
+  <div class="table-wrap">
+    <table id="groups">
+      <thead><tr><th>Group</th><th>Filter</th><th class="num">Access points</th><th class="num">Clients</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty" id="groups-empty" hidden>No groups yet. Type a filter above, check the result, then choose "Save as group".</div>
+  </div>
 </div>
 
 <div class="card">

@@ -24,6 +24,7 @@ from flask import (
     url_for,
 )
 
+from ccc import patterns
 from ccc.db import EXPORTS
 
 LOGIN_WINDOW = 300
@@ -189,13 +190,52 @@ def create_app(config, pipeline, store):
     @login_required
     def api_dashboard():
         hours = min(max(request.args.get("hours", 24, type=int), 1), 24 * 31)
+        text = patterns.normalize(request.args.get("filter", ""))
+        like = patterns.like_patterns(text) or None
+        latest = store.latest_counts(like)
         return jsonify(
             status=pipeline.status(),
-            latest=store.latest_counts(),
-            totals=store.totals(hours),
+            filter=text,
+            latest=latest,
+            latest_total=store.latest_size() if like else len(latest),
+            totals=store.totals(hours, like),
+            groups=store.groups(),
             database=store.stats(),
             hours=hours,
         )
+
+    def changing(view):
+        """State-changing API calls: signed in, and sent by this site's own script."""
+
+        @wraps(view)
+        def wrapper(*args, **kwargs):
+            if not session.get("user"):
+                return jsonify(error="not signed in"), 401
+            if request.headers.get("X-Requested-With") != "ccc":
+                return jsonify(error="bad request"), 400
+            return view(*args, **kwargs)
+
+        return wrapper
+
+    @app.post("/api/groups")
+    @changing
+    def api_group_save():
+        body = request.get_json(silent=True) or {}
+        name = " ".join(str(body.get("name", "")).split())[:60]
+        text = patterns.normalize(str(body.get("filter", "")))
+        like = patterns.like_patterns(text)
+        if not name:
+            return jsonify(error="Give the group a name."), 400
+        if not like:
+            return jsonify(error="A group needs a filter."), 400
+        store.save_group(name, text, like)
+        return jsonify(groups=store.groups())
+
+    @app.delete("/api/groups/<path:name>")
+    @changing
+    def api_group_delete(name):
+        store.delete_group(name)
+        return jsonify(groups=store.groups())
 
     @app.get("/api/ap-history")
     @login_required
@@ -301,7 +341,13 @@ def create_app(config, pipeline, store):
         except ValueError:
             return Response("from/to must look like 2026-01-31 or 2026-01-31T08:00\n", 400, mimetype="text/plain")
 
-        rows = store.export(name, since=since, until=until, wlc=request.args.get("wlc") or None)
+        rows = store.export(
+            name,
+            since=since,
+            until=until,
+            wlc=request.args.get("wlc") or None,
+            like=patterns.like_patterns(request.args.get("filter", "")) or None,
+        )
         columns = next(rows)
 
         def cell(value):

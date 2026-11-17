@@ -13,6 +13,8 @@ from psycopg import sql
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
+from ccc.patterns import MATCH_COLUMNS, match_sql
+
 log = logging.getLogger("ccc.db")
 
 SCHEMA = """
@@ -72,6 +74,16 @@ CREATE TABLE IF NOT EXISTS cycle (
     wlc_msg_timestamp bigint NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS cycle_lookup_idx ON cycle (kind, wlc, ts DESC);
+
+-- A group is a name for the access points that fit a filter, for example one
+-- floor of a building. like_patterns is the filter in the form the database
+-- matches with (see patterns.py).
+CREATE TABLE IF NOT EXISTS ap_group (
+    name          text PRIMARY KEY,
+    pattern       text NOT NULL,
+    like_patterns text[] NOT NULL,
+    created       timestamptz NOT NULL DEFAULT now()
+);
 """
 
 VIEWS = {
@@ -103,6 +115,23 @@ VIEWS = {
                first_seen AS first_seen_utc, last_seen AS last_seen_utc
           FROM ap
     """,
+    "powerbi_ap_groups": """
+        SELECT g.name AS group_name, g.pattern, a.wlc, a.ap_name
+          FROM ap_group g
+          JOIN ap a ON {match}
+    """,
+    "powerbi_group_counts": """
+        SELECT c.ts                        AS ts_utc,
+               (c.ts AT TIME ZONE {tz})    AS ts_local,
+               g.name                      AS group_name,
+               c.wlc,
+               count(*)::integer           AS access_points,
+               sum(c.clients)::integer     AS clients
+          FROM ap_group g
+          JOIN ap a ON {match}
+          JOIN ap_client_count c ON c.wlc = a.wlc AND c.ap_name = a.ap_name
+         GROUP BY c.ts, g.name, c.wlc
+    """,
 }
 
 # Columns each export hands out, in order. `time` is the column a from/to
@@ -128,6 +157,16 @@ EXPORTS = {
             "wlc", "ap_name", "wtp_mac", "ip", "location", "site_tag", "policy_tag", "rf_tag", "model",
             "first_seen_utc", "last_seen_utc",
         ],
+    },
+    "ap-groups": {
+        "view": "powerbi_ap_groups",
+        "time": None,
+        "columns": ["group_name", "pattern", "wlc", "ap_name"],
+    },
+    "group-counts": {
+        "view": "powerbi_group_counts",
+        "time": "ts_utc",
+        "columns": ["ts_utc", "ts_local", "group_name", "wlc", "access_points", "clients"],
     },
 }
 
@@ -172,7 +211,9 @@ class Store:
             for name, body in VIEWS.items():
                 conn.execute(sql.SQL("DROP VIEW IF EXISTS {}").format(sql.Identifier(name)))
                 conn.execute(
-                    sql.SQL("CREATE VIEW {name} AS " + body).format(name=sql.Identifier(name), tz=tz)
+                    sql.SQL("CREATE VIEW {name} AS " + body).format(
+                        name=sql.Identifier(name), tz=tz, match=sql.SQL(match_sql("a", "g.like_patterns"))
+                    )
                 )
             self._powerbi_role(conn)
 
@@ -296,31 +337,109 @@ class Store:
             ).fetchall()
         return rows
 
-    def latest_counts(self):
-        return self._all(
-            """
-            WITH latest AS (
-                SELECT DISTINCT ON (wlc) wlc, ts FROM cycle WHERE kind = 'clients' ORDER BY wlc, ts DESC
-            )
+    LATEST = """
+        WITH latest AS (
+            SELECT DISTINCT ON (wlc) wlc, ts FROM cycle WHERE kind = 'clients' ORDER BY wlc, ts DESC
+        ), current AS (
             SELECT c.ts, c.wlc, c.ap_name, c.clients,
                    COALESCE(a.location, '') AS location, COALESCE(a.site_tag, '') AS site_tag
               FROM latest l
               JOIN ap_client_count c ON c.wlc = l.wlc AND c.ts = l.ts
               LEFT JOIN ap a ON a.wlc = c.wlc AND a.ap_name = c.ap_name
+        )
+    """
+
+    def latest_counts(self, like=None):
+        """The newest count of every controller; `like` narrows it to what fits the filter."""
+        return self._all(
+            self.LATEST
+            + """
+            SELECT c.ts, c.wlc, c.ap_name, c.clients, c.location, c.site_tag
+              FROM current c
+             WHERE %(like)s::text[] IS NULL OR """
+            + match_sql("c", "%(like)s::text[]")
+            + """
              ORDER BY c.clients DESC, c.ap_name
+            """,
+            {"like": like or None},
+        )
+
+    def latest_size(self):
+        return self._all(self.LATEST + "SELECT count(*) AS aps FROM current")[0]["aps"]
+
+    def totals(self, hours=24, like=None):
+        """Clients over time per controller: everything, or the matching access points."""
+        if not like:
+            return self._all(
+                """
+                SELECT ts, wlc, clients_counted AS clients
+                  FROM cycle
+                 WHERE kind = 'clients' AND ts >= now() - make_interval(hours => %s)
+                 ORDER BY ts
+                """,
+                (hours,),
+            )
+        if hours <= 48:
+            return self._all(
+                """
+                SELECT c.ts, c.wlc, sum(c.clients)::integer AS clients
+                  FROM ap a
+                  JOIN ap_client_count c ON c.wlc = a.wlc AND c.ap_name = a.ap_name
+                 WHERE """
+                + match_sql("a", "%(like)s::text[]")
+                + """ AND c.ts >= now() - make_interval(hours => %(hours)s)
+                 GROUP BY c.ts, c.wlc
+                 ORDER BY c.ts
+                """,
+                {"like": like, "hours": hours},
+            )
+        # Longer ranges read the hourly table: the sum of the hourly averages.
+        return self._all(
+            """
+            SELECT h.hour AS ts, h.wlc, round(sum(h.clients_sum::numeric / h.samples))::integer AS clients
+              FROM ap a
+              JOIN ap_client_count_hourly h ON h.wlc = a.wlc AND h.ap_name = a.ap_name
+             WHERE """
+            + match_sql("a", "%(like)s::text[]")
+            + """ AND h.hour >= now() - make_interval(hours => %(hours)s)
+             GROUP BY h.hour, h.wlc
+             ORDER BY h.hour
+            """,
+            {"like": like, "hours": hours},
+        )
+
+    # ── groups ───────────────────────────────────────────────────────────────
+    def groups(self):
+        """Every group with what it holds right now."""
+        return self._all(
+            self.LATEST
+            + """
+            SELECT g.name, g.pattern,
+                   count(c.ap_name)::integer             AS aps,
+                   COALESCE(sum(c.clients), 0)::integer  AS clients
+              FROM ap_group g
+              LEFT JOIN current c ON """
+            + match_sql("c", "g.like_patterns")
+            + """
+             GROUP BY g.name, g.pattern
+             ORDER BY g.name
             """
         )
 
-    def totals(self, hours=24):
-        return self._all(
-            """
-            SELECT ts, wlc, clients_counted AS clients, aps_with_clients
-              FROM cycle
-             WHERE kind = 'clients' AND ts >= now() - make_interval(hours => %s)
-             ORDER BY ts
-            """,
-            (hours,),
-        )
+    def save_group(self, name, pattern, like):
+        with self.pool.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO ap_group (name, pattern, like_patterns) VALUES (%s, %s, %s)
+                ON CONFLICT (name) DO UPDATE SET pattern = EXCLUDED.pattern,
+                                                 like_patterns = EXCLUDED.like_patterns
+                """,
+                (name, pattern, like),
+            )
+
+    def delete_group(self, name):
+        with self.pool.connection() as conn:
+            return conn.execute("DELETE FROM ap_group WHERE name = %s", (name,)).rowcount
 
     def ap_history(self, wlc, ap_name, hours=24):
         return self._all(
@@ -345,7 +464,7 @@ class Store:
         )
         return rows[0]
 
-    def export(self, name, since=None, until=None, wlc=None, limit=None):
+    def export(self, name, since=None, until=None, wlc=None, like=None, limit=None):
         """Yield (columns) once, then rows as tuples, straight from the view."""
         spec = EXPORTS[name]
         where, params = [], []
@@ -359,6 +478,10 @@ class Store:
         if wlc:
             where.append(sql.SQL("wlc = %s"))
             params.append(wlc)
+        columns = [c for c in MATCH_COLUMNS if c in spec["columns"]]
+        if like and columns:
+            where.append(sql.SQL(match_sql("", "%s::text[]", columns)))
+            params.extend([like] * len(columns))
         query = sql.SQL("SELECT {} FROM {}").format(
             sql.SQL(", ").join(sql.Identifier(c) for c in spec["columns"]),
             sql.Identifier(spec["view"]),

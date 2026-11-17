@@ -12,6 +12,17 @@ const ccc = {
     return body;
   },
 
+  async send(method, url, body) {
+    const response = await fetch(url, {
+      method,
+      headers: { Accept: "application/json", "Content-Type": "application/json", "X-Requested-With": "ccc" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || response.statusText);
+    return data;
+  },
+
   // el("td", {class: "num"}, "12") — text children are always text, never HTML.
   el(tag, attrs, ...children) {
     const node = document.createElement(tag);

@@ -92,6 +92,33 @@ For each update, one row per access point goes into `ap_client_count`
 describing the update itself goes into `cycle` (messages, rows, counted,
 not counted, duration).
 
+## Filters and groups
+
+The dashboard has one filter box. What is typed there is compared with four
+things of every access point: its name, its location, its site tag and its
+controller. An access point is shown when any of them fits.
+
+| Typed | Shows |
+|---|---|
+| `AP-FORUM-2*` | everything starting with AP-FORUM-2 |
+| `*-2??` | everything ending in -2 and two more characters |
+| `forum floor 2` | everything containing that text (no wildcard: anywhere) |
+| `AP-A-1*, AP-B-1*` | either of the two |
+
+Upper and lower case are the same. The tiles, the chart and the table all follow
+the filter, so the number at the top is the number of clients on the access
+points that fit. With access point names that carry the building and the floor,
+that is the occupancy of a floor.
+
+A filter can be saved under a name as a **group**. The Groups table on the
+dashboard then shows every group with its current number of access points and
+clients, side by side. Groups are evaluated when they are read: an access point
+added later with a fitting name is in the group from then on, for the history as
+well. Removing a group removes only the name; the counts are untouched.
+
+Groups are available to reporting as `group-counts` and `ap-groups`
+([powerbi.md](powerbi.md)).
+
 ## What is stored where
 
 | Table | Content | Kept |
@@ -100,9 +127,9 @@ not counted, duration).
 | `ap_client_count_hourly` | per access point per hour: samples, sum, min, max | indefinitely |
 | `ap` | access points: MAC, IP, location, site/policy/RF tag, model, first and last seen | indefinitely |
 | `cycle` | one row per update, for the dashboard and for auditing | `RETENTION_DAYS` |
+| `ap_group` | the saved groups: name and filter | until removed |
 
-Reporting reads the views `powerbi_ap_counts`, `powerbi_ap_counts_hourly` and
-`powerbi_access_points`; see [powerbi.md](powerbi.md).
+Reporting reads the `powerbi_*` views; see [powerbi.md](powerbi.md).
 
 Client MAC addresses and user names are never written to the database.
 

@@ -2,8 +2,9 @@
 {% block content %}
 <h1>Power BI</h1>
 <p class="lead">
-  The counts are stored in PostgreSQL and exposed as three views. Power BI can read them
+  The counts are stored in PostgreSQL and exposed as views. Power BI can read them
   through the web export (no driver, works with scheduled refresh) or straight from the database.
+  Groups made on the dashboard (a saved filter, for example one floor) come along as two more.
   Times come in UTC and in local time ({{ tz }}).
 </p>
 
@@ -31,6 +32,18 @@
           <td class="wrap mono">{{ exports['access-points'].columns | join(', ') }}</td>
           <td>indefinitely</td>
         </tr>
+        <tr>
+          <td><code>group-counts</code><br><span class="muted small">powerbi_group_counts</span></td>
+          <td class="wrap">one group (for example a floor) at one count</td>
+          <td class="wrap mono">{{ exports['group-counts'].columns | join(', ') }}</td>
+          <td>{{ retention_days }} days</td>
+        </tr>
+        <tr>
+          <td><code>ap-groups</code><br><span class="muted small">powerbi_ap_groups</span></td>
+          <td class="wrap">one access point in one group</td>
+          <td class="wrap mono">{{ exports['ap-groups'].columns | join(', ') }}</td>
+          <td>follows the groups</td>
+        </tr>
       </tbody>
     </table>
   </div>
@@ -48,13 +61,16 @@
       <strong>Basic</strong> with user <code>powerbi</code> and the export token as password.</p>
     <pre id="urls">{{ base_url }}/export/ap-counts-hourly.csv?days=365
 {{ base_url }}/export/ap-counts.csv?days=30
-{{ base_url }}/export/access-points.csv</pre>
+{{ base_url }}/export/access-points.csv
+{{ base_url }}/export/group-counts.csv?days=30
+{{ base_url }}/export/ap-groups.csv</pre>
     <h3>Parameters</h3>
     <dl class="kv small">
       <dt><code>days=30</code></dt><dd>the last N days (default 30, hourly 365)</dd>
       <dt><code>from=2026-01-01</code></dt><dd>start, local time; also <code>2026-01-01T08:00</code></dd>
       <dt><code>to=2026-02-01</code></dt><dd>end, exclusive</dd>
       <dt><code>wlc=NAME</code></dt><dd>one controller only</dd>
+      <dt><code>filter=AP-FORUM-2*</code></dt><dd>the dashboard filter: name, location, site tag or controller</dd>
       <dt><code>.json</code></dt><dd>instead of <code>.csv</code> for JSON</dd>
     </dl>
     <h3>Test from a shell</h3>
@@ -72,7 +88,7 @@
       <dt>Database</dt><dd><code>ccc</code></dd>
       <dt>User</dt><dd><code>powerbi</code> (read-only, views only)</dd>
       <dt>Password</dt><dd>POWERBI_DB_PASSWORD from <code>.env</code></dd>
-      <dt>Tables</dt><dd><code>powerbi_ap_counts</code>, <code>powerbi_ap_counts_hourly</code>, <code>powerbi_access_points</code></dd>
+      <dt>Tables</dt><dd><code>powerbi_ap_counts</code>, <code>powerbi_ap_counts_hourly</code>, <code>powerbi_access_points</code>, <code>powerbi_group_counts</code>, <code>powerbi_ap_groups</code></dd>
     </dl>
     <p class="hint">The database port is bound to localhost by default. Set <code>DB_BIND=0.0.0.0</code> in <code>.env</code> to reach it from another machine, and limit who can reach it with the firewall.</p>
     <h3>Example query</h3>

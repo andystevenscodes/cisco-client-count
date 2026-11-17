@@ -31,6 +31,7 @@ connected devices per access point.
 - [Configure the controller](#configure-the-controller)
 - [The web interface](#the-web-interface)
 - [How a count is made](#how-a-count-is-made)
+- [Filter and groups](#filter-and-groups)
 - [Power BI](#power-bi)
 - [Settings](#settings)
 - [Operating it](#operating-it)
@@ -142,7 +143,7 @@ Details, the syntax for older releases and removal: [docs/wlc-setup.md](docs/wlc
 
 | Page | What it shows |
 |---|---|
-| **Dashboard** | Connected clients now, the trend, the count per access point (click one for its history), and the state of every telemetry stream. |
+| **Dashboard** | Connected clients now, the trend, the count per access point (click one for its history), and the state of every telemetry stream. A filter on access point name, location, site tag or controller narrows all of it, and can be saved as a group. |
 | **Raw data** | Every message as received, newest first: decoded to JSON or as protobuf text. Live, with pause. |
 | **Translation** | One update, followed from the messages that arrived, through the rule, to the number per access point and the rows written to the database. |
 | **WLC setup** | The configuration to paste on the controller, plus the commands to verify and remove it. |
@@ -165,15 +166,27 @@ Details, the syntax for older releases and removal: [docs/wlc-setup.md](docs/wlc
 The **Translation** page shows these steps with the real data of any recent update.
 [docs/how-counting-works.md](docs/how-counting-works.md) describes the edge cases.
 
+## Filter and groups
+
+Type `AP-FORUM-2*` in the filter on the dashboard and the total, the chart and
+the table show only the access points whose name starts with that. With names
+that carry building and floor, that is the number of clients on a floor. Save
+the filter as a group ("Forum floor 2") to see all floors side by side and to
+get them in Power BI. `*` is any text, `?` one character; text without a
+wildcard may appear anywhere in the name, location, site tag or controller.
+More in [docs/how-counting-works.md](docs/how-counting-works.md#filters-and-groups).
+
 ## Power BI
 
-Two ways in, both read the same three datasets:
+Two ways in, both read the same datasets:
 
 | Dataset | One row is | Use it for |
 |---|---|---|
 | `ap-counts` | one access point at one count | detail of recent days |
 | `ap-counts-hourly` | one access point in one hour (average, min, max) | occupancy over weeks and months |
 | `access-points` | one access point (location, tags, model) | dimension table |
+| `group-counts` | one group (for example a floor) at one count | clients per floor over time |
+| `ap-groups` | one access point in one group | slicing the other tables by group |
 
 **Web export** (no driver needed): *Get data → Web*, URL
 `http://<server>:8080/export/ap-counts-hourly.csv?days=365`, authentication
@@ -181,7 +194,8 @@ Two ways in, both read the same three datasets:
 
 **PostgreSQL**: *Get data → PostgreSQL database*, server `<server>:5432`, database
 `ccc`, user `powerbi` (read-only), views `powerbi_ap_counts`,
-`powerbi_ap_counts_hourly`, `powerbi_access_points`.
+`powerbi_ap_counts_hourly`, `powerbi_access_points`, `powerbi_group_counts`,
+`powerbi_ap_groups`.
 
 Step by step, with parameters and an example model: [docs/powerbi.md](docs/powerbi.md).
 
@@ -269,7 +283,7 @@ sudo docker compose exec db psql -U ccc ccc -c "DELETE FROM ap_client_count WHER
   memory for the Raw data and Translation pages and are gone after a restart.
   With `ANONYMIZE_CLIENTS=true` the MAC addresses are replaced by a pseudonym and
   user names are hidden before a message is kept at all; the count is unaffected.
-- The `powerbi` database user can read the three reporting views and nothing else.
+- The `powerbi` database user can read the reporting views and nothing else.
 
 ## Troubleshooting
 
@@ -290,6 +304,7 @@ ccc/receiver.py    gRPC dial-out server
 ccc/decode.py      kvGPB telemetry to Python
 ccc/pipeline.py    messages → updates → translation → store; raw buffer
 ccc/translate.py   the counting rule (pure functions)
+ccc/patterns.py    the filter syntax of the dashboard, groups and export
 ccc/db.py          PostgreSQL schema, writes, reporting views
 ccc/web.py         web interface, API, export
 proto/             Cisco telemetry .proto files (Apache-2.0, see proto/LICENSE)
