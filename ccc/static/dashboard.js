@@ -30,7 +30,7 @@
     const live = new Set();
     for (const s of data.status.streams) {
       const limit = Math.max((s.period || 300) * 2.5, 120);
-      if (s.last_seen_age !== null && s.last_seen_age < limit) live.add(s.wlc);
+      if (!s.empty && s.last_seen_age !== null && s.last_seen_age < limit) live.add(s.wlc);
     }
     $("t-wlcs").textContent = live.size;
     $("t-wlcs-note").textContent = live.size ? [...live].join(", ") : "none right now";
@@ -139,7 +139,7 @@
         ccc.el("td", {}, s.wlc),
         ccc.el("td", {}, s.subscription_id),
         ccc.el("td", { class: "mono" }, s.encoding_path),
-        ccc.el("td", {}, use[s.kind] || "Raw view only"),
+        ccc.el("td", {}, s.empty ? "Empty table, ignored" : use[s.kind] || "Raw view only"),
         ccc.el("td", { class: "num" }, s.period ? ccc.duration(s.period) : "–"),
         ccc.el("td", { class: "num" }, ccc.int(s.last_cycle_rows)),
         ccc.el("td", {}, ccc.el("span", { class: "dot " + (stale ? "warn" : "good") }), " ", ccc.age(s.last_seen_age))));

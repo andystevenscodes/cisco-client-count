@@ -208,6 +208,15 @@ class Store:
             # One instance at a time: two starting together would race on the views.
             conn.execute("SELECT pg_advisory_xact_lock(726310)")
             conn.execute(SCHEMA)
+            # Updates that carried nothing are no longer recorded; drop the ones
+            # an earlier version wrote, so empty sources leave the dashboard.
+            conn.execute(
+                """
+                DELETE FROM cycle
+                 WHERE (kind = 'clients' AND aps_with_clients = 0 AND aps_zero_filled = 0)
+                    OR (kind = 'inventory' AND aps_in_inventory = 0)
+                """
+            )
             for name, body in VIEWS.items():
                 conn.execute(sql.SQL("DROP VIEW IF EXISTS {}").format(sql.Identifier(name)))
                 conn.execute(

@@ -234,3 +234,32 @@ def test_filter_looks_at_name_location_tag_and_controller():
     for column in ("a.ap_name", "a.location", "a.site_tag", "a.wlc"):
         assert f"{column} ILIKE ANY (%s)" in sql
     assert patterns.match_sql("", "%s", ["ap_name", "wlc"]) == "(ap_name ILIKE ANY (%s) OR wlc ILIKE ANY (%s))"
+
+
+def test_a_source_that_only_sends_empty_tables_is_ignored():
+    pipeline, clock, store = make_pipeline()
+    pipeline.ingest("10.0.0.9", client_message([], wlc="switch-1"))
+    pipeline.ingest("10.0.0.9", ap_message([], wlc="switch-1"))
+    pipeline.ingest("10.0.0.1", client_message([("aa:aa:aa:aa:aa:01", "AP-1", RUN)], wlc="wlc-1"))
+    clock.now += 10
+    closed = pipeline.sweep()
+    assert len(closed) == 3
+    # received and visible as raw data and as a stream ...
+    assert pipeline.status()["messages"] == 3
+    streams = {(s["wlc"], s["kind"]): s for s in pipeline.status()["streams"]}
+    assert streams[("switch-1", "clients")]["empty"] and streams[("switch-1", "inventory")]["empty"]
+    assert not streams[("wlc-1", "clients")]["empty"]
+    # ... but not stored and not offered on the Translation page
+    assert [c["wlc"] for c in store.client_cycles] == ["wlc-1"]
+    assert store.inventories == []
+    assert [c["wlc"] for c in pipeline.cycles()] == ["wlc-1"]
+
+
+def test_a_controller_without_clients_still_stores_zeros():
+    pipeline, clock, store = make_pipeline()
+    pipeline.ingest("10.0.0.1", ap_message([("AP-1", "Hall"), ("AP-2", "Hall")]))
+    pipeline.ingest("10.0.0.1", client_message([]))
+    clock.now += 10
+    pipeline.sweep()
+    assert store.client_cycles[0]["counts"] == {"AP-1": 0, "AP-2": 0}
+    assert not pipeline.status()["streams"][0]["empty"]

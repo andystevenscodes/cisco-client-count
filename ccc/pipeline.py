@@ -135,6 +135,7 @@ class Pipeline:
                     "period": None,
                     "last_cycle_started": None,
                     "last_cycle_rows": None,
+                    "empty": False,
                 }
             stream["peer"] = peer
             stream["last_seen"] = now
@@ -239,7 +240,16 @@ class Pipeline:
                 for ap in translated["aps"]:
                     seen[ap] = now
 
-        if self.store is not None:
+        # A source that only sends empty tables (a device that has the
+        # subscription but no access points or clients) is received and stays
+        # visible under Raw data, but is neither stored nor shown as a controller.
+        if cycle.kind == translate.KIND_CLIENTS:
+            empty = not result["counts"]
+        else:
+            empty = not result["aps"]
+        result["empty"] = empty
+
+        if self.store is not None and not empty:
             try:
                 if cycle.kind == translate.KIND_CLIENTS:
                     self.store.save_client_cycle(result)
@@ -258,6 +268,17 @@ class Pipeline:
                 stream["last_cycle_started"] = cycle.started_at
                 stream["last_cycle_rows"] = len(cycle.rows)
                 stream["cycles"] += 1
+                newly_empty = empty and not stream["empty"]
+                stream["empty"] = empty
+            else:
+                newly_empty = False
+            if empty:
+                if newly_empty:
+                    log.info(
+                        "%s subscription %s (%s) sends an empty table; ignored until it has data",
+                        wlc, result["subscription_id"], cycle.kind,
+                    )
+                return result
             self.done.appendleft(result)
             # Keep only the newest few per WLC and kind: the decisions are large.
             kept = {}

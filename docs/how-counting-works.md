@@ -165,5 +165,11 @@ recent weeks; the hourly history stays.
 ## Not counted, by design
 
 - Streams with another path: received and shown, never stored.
+- Sources that only send empty tables, for example a device that carries the
+  subscription but has no access points and no clients. They stay visible under
+  Raw data and in the list of telemetry streams ("Empty table, ignored"), but
+  nothing is stored for them and they are not shown as a controller. As soon as
+  such a source sends an access point or a client it is counted like any other.
+  To keep them out altogether, set `ALLOWED_WLC_SOURCES`.
 - Per-SSID or per-band splits. The fields (`wlan-id`, `ms-ap-slot-id`) are in the
   rows and visible on the Translation page, but the stored number is per access point.

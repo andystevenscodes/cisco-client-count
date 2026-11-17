@@ -125,13 +125,14 @@ class Network:
 
 
 def messages(name, subscription_id, path, rows, per_message, collection_id):
-    batch = []
+    batch, sent = [], 0
     for row in rows:
         batch.append(row)
         if len(batch) == per_message:
             yield build(name, subscription_id, path, batch, collection_id)
-            batch = []
-    if batch:
+            batch, sent = [], sent + 1
+    if batch or not sent:
+        # An empty table still produces a message, as on a real device.
         yield build(name, subscription_id, path, batch, collection_id)
 
 
