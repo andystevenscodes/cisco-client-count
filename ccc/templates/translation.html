@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Translation</h1>
+<p class="lead">
+  How one periodic update from the controller becomes one number per access point.
+  Each step shows the real data of the selected update, so the count can be checked by hand.
+</p>
+
+<div class="card">
+  <div class="row">
+    <div class="field">
+      <label for="cycle">Update (cycle)</label>
+      <select id="cycle"></select>
+    </div>
+    <label class="row small" for="follow"><input type="checkbox" id="follow" checked> Follow the newest</label>
+    <div class="spacer"></div>
+    <span class="muted small" id="kept"></span>
+  </div>
+</div>
+
+<div id="none" class="banner" hidden>
+  No client update has been translated since this service started. Updates arrive once per
+  subscription period; an update is complete when the stream has been quiet for
+  <span id="gap">5</span> seconds.
+</div>
+
+<div id="steps" hidden>
+  <div class="card step">
+    <div class="n">1</div>
+    <div>
+      <h2>What arrived</h2>
+      <p class="muted">One periodic update is a burst of messages. The burst is complete once the stream goes quiet.</p>
+      <dl class="kv" id="arrived"></dl>
+      <p class="hint"><a id="raw-link" href="#">Show these messages under Raw data</a></p>
+    </div>
+  </div>
+
+  <div class="card step">
+    <div class="n">2</div>
+    <div>
+      <h2>One row is one client</h2>
+      <p class="muted">Four fields of each row are read. This is the first row of the update.</p>
+      <div class="grid two">
+        <div>
+          <h3>Row as received</h3>
+          <pre class="tall" id="sample-row"></pre>
+        </div>
+        <div>
+          <h3>What is read from it</h3>
+          <dl class="kv" id="sample-fields"></dl>
+          <h3>Verdict</h3>
+          <p id="sample-verdict"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card step">
+    <div class="n">3</div>
+    <div>
+      <h2>The rule</h2>
+      <div class="rule" id="rule"></div>
+      <div class="grid two">
+        <div>
+          <h3>Clients by state</h3>
+          <div class="table-wrap">
+            <table id="states"><thead><tr><th>co-state</th><th class="num">Clients</th><th class="num">Counted</th></tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+        <div>
+          <h3>The sum</h3>
+          <dl class="kv" id="sum"></dl>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card step">
+    <div class="n">4</div>
+    <div>
+      <div class="row between">
+        <h2>Count per access point <span class="muted" id="ap-note"></span></h2>
+        <input type="search" id="ap-filter" placeholder="Filter access points" aria-label="Filter access points">
+      </div>
+      <div class="grid two">
+        <div>
+          <div class="table-wrap">
+            <table id="counts"><thead><tr><th>Access point</th><th class="num">Clients</th><th>Source</th></tr></thead><tbody></tbody></table>
+          </div>
+          <p class="hint">Click an access point to see the rows behind its number.</p>
+        </div>
+        <div>
+          <div class="row between">
+            <h3 id="rows-title">Rows that were not counted</h3>
+            <button class="link small" type="button" id="rows-reset" hidden>Show the rows that were not counted</button>
+          </div>
+          <div class="table-wrap">
+            <table id="rows"><thead><tr><th>Client MAC</th><th>Access point</th><th>co-state</th><th class="num">WLAN</th><th class="num">Slot</th><th>Counted</th></tr></thead><tbody></tbody></table>
+            <div class="empty" id="rows-empty" hidden>No rows.</div>
+          </div>
+          <p class="hint" id="rows-note"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card step">
+    <div class="n">5</div>
+    <div>
+      <h2>Stored</h2>
+      <p id="stored"></p>
+      <p class="muted small" id="inventory"></p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='translation.js') }}"></script>
+{% endblock %}

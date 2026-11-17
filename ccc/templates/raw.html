@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Raw data</h1>
+<p class="lead">
+  Every telemetry message exactly as the controller sent it, newest first. The last
+  <span id="capacity">…</span> messages are kept in memory; nothing here is interpreted yet.
+  How these rows become a number is on <a href="{{ url_for('translation') }}">Translation</a>.
+</p>
+{% if anonymize %}
+<div class="banner">Client MAC addresses are replaced by a pseudonym and user names are hidden before a message is kept (ANONYMIZE_CLIENTS).</div>
+{% endif %}
+
+<div class="card">
+  <div class="row">
+    <div class="field"><label for="f-wlc">Controller</label><select id="f-wlc"><option value="">All</option></select></div>
+    <div class="field"><label for="f-path">Path</label><select id="f-path"><option value="">All</option></select></div>
+    <div class="spacer"></div>
+    <span class="pill" id="cycle-filter" hidden></span>
+    <span class="pill"><span class="dot" id="live-dot"></span><span id="live-text">Live</span></span>
+    <button type="button" id="pause">Pause</button>
+  </div>
+</div>
+
+<div class="grid two">
+  <div class="card">
+    <h2>Messages <span class="muted" id="count"></span></h2>
+    <div class="table-wrap">
+      <table id="messages">
+        <thead>
+          <tr><th class="num">#</th><th>Received</th><th>Controller</th><th>Sub</th><th>Path</th><th class="num">Rows</th><th class="num">Size</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="messages-empty" hidden>No telemetry message received yet.</div>
+    </div>
+    <div id="errors" hidden>
+      <h3>Receiver errors</h3>
+      <div class="table-wrap"><table id="error-table"><thead><tr><th>Time</th><th>Source</th><th>Error</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row between">
+      <h2 id="detail-title">Message</h2>
+      <div class="row">
+        <div class="seg" id="view" role="group" aria-label="View">
+          <button type="button" data-view="decoded" class="on">Decoded</button>
+          <button type="button" data-view="protobuf">Protobuf</button>
+        </div>
+        <button type="button" id="copy">Copy</button>
+      </div>
+    </div>
+    <dl class="kv small" id="detail-head"></dl>
+    <pre class="tall" id="detail" tabindex="0">Select a message.</pre>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='raw.js') }}"></script>
+{% endblock %}

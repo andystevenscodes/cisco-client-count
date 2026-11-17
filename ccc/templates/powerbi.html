@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Power BI</h1>
+<p class="lead">
+  The counts are stored in PostgreSQL and exposed as three views. Power BI can read them
+  through the web export (no driver, works with scheduled refresh) or straight from the database.
+  Times come in UTC and in local time ({{ tz }}).
+</p>
+
+<div class="card">
+  <h2>The data</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Export / view</th><th>One row is</th><th>Columns</th><th>Kept</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>ap-counts</code><br><span class="muted small">powerbi_ap_counts</span></td>
+          <td class="wrap">one access point at one count</td>
+          <td class="wrap mono">{{ exports['ap-counts'].columns | join(', ') }}</td>
+          <td>{{ retention_days }} days</td>
+        </tr>
+        <tr>
+          <td><code>ap-counts-hourly</code><br><span class="muted small">powerbi_ap_counts_hourly</span></td>
+          <td class="wrap">one access point in one hour</td>
+          <td class="wrap mono">{{ exports['ap-counts-hourly'].columns | join(', ') }}</td>
+          <td>indefinitely</td>
+        </tr>
+        <tr>
+          <td><code>access-points</code><br><span class="muted small">powerbi_access_points</span></td>
+          <td class="wrap">one access point</td>
+          <td class="wrap mono">{{ exports['access-points'].columns | join(', ') }}</td>
+          <td>indefinitely</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="hint">Use <code>ap-counts-hourly</code> for occupancy over weeks or months; <code>ap-counts</code> for the detail of recent days.
+    Relate both to <code>access-points</code> on <code>wlc</code> + <code>ap_name</code>, or use the location and tag columns that are already included.</p>
+</div>
+
+<div class="grid two">
+  <div class="card">
+    <h2>Option A: web export</h2>
+    {% if not token_set %}
+    <div class="banner">EXPORT_TOKEN is not set, so the export only works while signed in here. Set it in <code>.env</code> and restart to let Power BI in.</div>
+    {% endif %}
+    <p>In Power BI Desktop: <strong>Get data → Web</strong>, paste a URL, and when asked for credentials choose
+      <strong>Basic</strong> with user <code>powerbi</code> and the export token as password.</p>
+    <pre id="urls">{{ base_url }}/export/ap-counts-hourly.csv?days=365
+{{ base_url }}/export/ap-counts.csv?days=30
+{{ base_url }}/export/access-points.csv</pre>
+    <h3>Parameters</h3>
+    <dl class="kv small">
+      <dt><code>days=30</code></dt><dd>the last N days (default 30, hourly 365)</dd>
+      <dt><code>from=2026-01-01</code></dt><dd>start, local time; also <code>2026-01-01T08:00</code></dd>
+      <dt><code>to=2026-02-01</code></dt><dd>end, exclusive</dd>
+      <dt><code>wlc=NAME</code></dt><dd>one controller only</dd>
+      <dt><code>.json</code></dt><dd>instead of <code>.csv</code> for JSON</dd>
+    </dl>
+    <h3>Test from a shell</h3>
+    <pre>curl -u powerbi:EXPORT_TOKEN "{{ base_url }}/export/ap-counts.csv?days=1"</pre>
+  </div>
+
+  <div class="card">
+    <h2>Option B: PostgreSQL</h2>
+    {% if not db_role_set %}
+    <div class="banner">POWERBI_DB_PASSWORD is not set, so the read-only database user does not exist yet. Set it in <code>.env</code>, publish the database port (DB_BIND) and restart.</div>
+    {% endif %}
+    <p>In Power BI Desktop: <strong>Get data → PostgreSQL database</strong>.</p>
+    <dl class="kv">
+      <dt>Server</dt><dd><code>{{ db_host }}:{{ db_port }}</code></dd>
+      <dt>Database</dt><dd><code>ccc</code></dd>
+      <dt>User</dt><dd><code>powerbi</code> (read-only, views only)</dd>
+      <dt>Password</dt><dd>POWERBI_DB_PASSWORD from <code>.env</code></dd>
+      <dt>Tables</dt><dd><code>powerbi_ap_counts</code>, <code>powerbi_ap_counts_hourly</code>, <code>powerbi_access_points</code></dd>
+    </dl>
+    <p class="hint">The database port is bound to localhost by default. Set <code>DB_BIND=0.0.0.0</code> in <code>.env</code> to reach it from another machine, and limit who can reach it with the firewall.</p>
+    <h3>Example query</h3>
+    <pre>SELECT hour_local, location, sum(clients_avg) AS clients
+  FROM powerbi_ap_counts_hourly
+ WHERE hour_local >= now() - interval '7 days'
+ GROUP BY hour_local, location
+ ORDER BY hour_local;</pre>
+  </div>
+</div>
+{% endblock %}

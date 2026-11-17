@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Dashboard</h1>
+<p class="lead">Connected clients per access point, as counted from the controller's telemetry stream.</p>
+
+<div id="waiting" class="banner" hidden>
+  No client telemetry has arrived yet. Put the subscription on the controller
+  (<a href="{{ url_for('setup') }}">WLC setup</a>) and watch it come in under
+  <a href="{{ url_for('raw') }}">Raw data</a>.
+</div>
+
+<div class="tiles">
+  <div class="tile"><div class="label">Connected clients</div><div class="value" id="t-clients">–</div><div class="note" id="t-clients-note">&nbsp;</div></div>
+  <div class="tile"><div class="label">Access points</div><div class="value" id="t-aps">–</div><div class="note" id="t-aps-note">&nbsp;</div></div>
+  <div class="tile"><div class="label">Controllers streaming</div><div class="value" id="t-wlcs">–</div><div class="note" id="t-wlcs-note">&nbsp;</div></div>
+  <div class="tile"><div class="label">Last count</div><div class="value" id="t-last">–</div><div class="note" id="t-last-note">&nbsp;</div></div>
+</div>
+
+<div class="card">
+  <div class="row between">
+    <h2 id="chart-title">Connected clients</h2>
+    <div class="seg" id="range" role="group" aria-label="Time range">
+      <button type="button" data-hours="1">1 h</button>
+      <button type="button" data-hours="6">6 h</button>
+      <button type="button" data-hours="24" class="on">24 h</button>
+      <button type="button" data-hours="168">7 d</button>
+      <button type="button" data-hours="720">30 d</button>
+    </div>
+  </div>
+  <div class="chart" id="chart"></div>
+  <div class="row small muted" id="chart-back" hidden>
+    <button class="link" type="button" id="chart-reset">← Back to all access points</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row between">
+    <h2>Per access point <span class="muted" id="table-note"></span></h2>
+    <div class="row">
+      <input type="search" id="filter" placeholder="Filter on name, location, tag" aria-label="Filter access points">
+      <a class="button" href="/export/ap-counts.csv?days=1">CSV, last 24 h</a>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table id="aps">
+      <thead>
+        <tr>
+          <th class="sortable" data-sort="ap_name">Access point</th>
+          <th class="sortable" data-sort="location">Location</th>
+          <th class="sortable" data-sort="site_tag">Site tag</th>
+          <th class="sortable" data-sort="wlc">Controller</th>
+          <th class="sortable num" data-sort="clients">Clients</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty" id="aps-empty" hidden>Nothing counted yet.</div>
+  </div>
+  <p class="hint">Click a row for the history of that access point.</p>
+</div>
+
+<div class="card">
+  <h2>Telemetry streams</h2>
+  <div class="table-wrap">
+    <table id="streams">
+      <thead>
+        <tr><th>Controller</th><th>Subscription</th><th>Path</th><th>Used for</th><th class="num">Period</th><th class="num">Rows last cycle</th><th>Last message</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty" id="streams-empty" hidden>No stream since this service started.</div>
+  </div>
+  <p class="hint" id="db-note"></p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='chart.js') }}"></script>
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+{% endblock %}

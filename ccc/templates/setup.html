@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>WLC setup</h1>
+<p class="lead">
+  The controller pushes its data to this server (model-driven telemetry, gRPC dial-out).
+  Fill in the addresses, copy the configuration and paste it in configuration mode on the
+  Catalyst 9800. Nothing is changed on the controller from here.
+</p>
+
+<div class="card" id="setup" data-host="{{ receiver_host }}" data-port="{{ telemetry_port }}">
+  <h2>1. Addresses</h2>
+  <div class="fields">
+    <div class="field">
+      <label for="receiver">This server, as the controller reaches it</label>
+      <input type="text" id="receiver" inputmode="decimal" placeholder="10.0.0.10" autocomplete="off">
+      <div class="hint">An IP address. The controller does not resolve a name here.</div>
+    </div>
+    <div class="field">
+      <label for="port">Port</label>
+      <input type="number" id="port" min="1" max="65535">
+      <div class="hint">TCP, must be open from the controller to this server.</div>
+    </div>
+    <div class="field">
+      <label for="source">Source address on the controller</label>
+      <input type="text" id="source" inputmode="decimal" placeholder="optional" autocomplete="off">
+      <div class="hint">Usually the wireless management address. Empty leaves the choice to the controller.</div>
+    </div>
+    <div class="field">
+      <label for="style">Receiver syntax</label>
+      <select id="style">
+        <option value="named">Named receiver (IOS XE 17.x)</option>
+        <option value="legacy">Inline receiver (older releases)</option>
+      </select>
+      <div class="hint">If the controller rejects <code>telemetry receiver protocol</code>, use inline.</div>
+    </div>
+  </div>
+
+  <h2>2. Subscriptions</h2>
+  <div class="fields">
+    <div class="field">
+      <label for="client-id">Client count: subscription id</label>
+      <input type="number" id="client-id" min="1" max="2147483647" value="2101">
+    </div>
+    <div class="field">
+      <label for="client-period">Client count: every</label>
+      <select id="client-period">
+        <option value="60">1 minute</option>
+        <option value="120">2 minutes</option>
+        <option value="300" selected>5 minutes</option>
+        <option value="600">10 minutes</option>
+        <option value="900">15 minutes</option>
+      </select>
+      <div class="hint" id="volume"></div>
+    </div>
+    <div class="field">
+      <label for="ap-id">Access point list: subscription id</label>
+      <input type="number" id="ap-id" min="1" max="2147483647" value="2102">
+    </div>
+    <div class="field">
+      <label for="ap-period">Access point list: every</label>
+      <select id="ap-period">
+        <option value="300">5 minutes</option>
+        <option value="900" selected>15 minutes</option>
+        <option value="1800">30 minutes</option>
+        <option value="0">Do not send</option>
+      </select>
+      <div class="hint">Gives each access point its location and tags, and lets an empty access point be stored as 0.</div>
+    </div>
+  </div>
+  <p class="hint">Pick subscription ids that are not in use on the controller: <code>show telemetry ietf subscription all</code>.</p>
+</div>
+
+<div class="card">
+  <div class="row between">
+    <h2>3. Paste on the controller</h2>
+    <button class="primary" type="button" data-copy="config">Copy configuration</button>
+  </div>
+  <p class="error" id="problem" hidden></p>
+  <pre id="config"></pre>
+</div>
+
+<div class="grid two">
+  <div class="card">
+    <div class="row between">
+      <h2>4. Check on the controller</h2>
+      <button type="button" data-copy="verify">Copy</button>
+    </div>
+    <pre id="verify"></pre>
+    <p class="hint">The subscription state must be <code>Valid</code> and the receiver <code>Connected</code>.
+      The first update then shows up under <a href="{{ url_for('raw') }}">Raw data</a> within one period.</p>
+  </div>
+  <div class="card">
+    <div class="row between">
+      <h2>Remove again</h2>
+      <button type="button" data-copy="remove">Copy</button>
+    </div>
+    <pre id="remove"></pre>
+  </div>
+</div>
+
+<div class="card">
+  <h2>What the controller sends</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Subscription</th><th>YANG path</th><th>One row is</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td>Client count</td><td class="mono">/wireless-client-oper:client-oper-data/common-oper-data</td><td>one client</td><td class="wrap">The count: clients in run state, grouped by access point name.</td></tr>
+        <tr><td>Access point list</td><td class="mono">/wireless-access-point-oper:access-point-oper-data/capwap-data</td><td>one joined access point</td><td class="wrap">Name, location and tags per access point; zero counts.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="hint">Any other subscription sent to this server is received and shown under Raw data, but not counted.</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='setup.js') }}"></script>
+{% endblock %}

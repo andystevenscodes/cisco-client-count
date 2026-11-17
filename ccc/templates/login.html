@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Cisco Client Count</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main>
+    <form class="card login" method="post">
+      <h1>Cisco Client Count</h1>
+      <p class="muted">Sign in with the admin password.</p>
+      {% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+      <button class="primary" type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>

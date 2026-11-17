@@ -1,0 +1,11 @@
+data/
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.DS_Store
+# generated from proto/ at build time
+ccc/pb/*_pb2.py
+ccc/pb/*_pb2_grpc.py

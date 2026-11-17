@@ -1,0 +1,44 @@
+services:
+  app:
+    build:
+      context: .
+    image: cisco-client-count:local
+    container_name: ccc-app
+    env_file:
+      - ./.env
+    environment:
+      # Named zone, not an offset: log lines and the *_local columns follow it,
+      # summer time included.
+      TZ: "${TZ:-Europe/Amsterdam}"
+      DATABASE_URL: "postgresql://ccc:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/ccc"
+    ports:
+      # Telemetry from the controller (gRPC dial-out). Change TELEMETRY_PORT when
+      # 57500 is already taken on this host.
+      - "${TELEMETRY_PORT:-57500}:57500"
+      # Web interface and export.
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:17
+    container_name: ccc-db
+    environment:
+      POSTGRES_USER: ccc
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+      POSTGRES_DB: ccc
+      TZ: "${TZ:-Europe/Amsterdam}"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      # Localhost only by default. DB_BIND=0.0.0.0 opens it for Power BI's
+      # PostgreSQL connector (read-only user "powerbi").
+      - "${DB_BIND:-127.0.0.1}:${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ccc -d ccc"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
