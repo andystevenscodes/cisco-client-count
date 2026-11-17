@@ -38,6 +38,7 @@ connected devices per access point.
 - [Security and privacy](#security-and-privacy)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
+- [License](#license)
 
 More detail lives in [docs/](docs/):
 [install](docs/install-ubuntu.md) ·
@@ -301,3 +302,8 @@ Run the tests in the image:
 ```bash
 docker run --rm -u root -v "$PWD/tests":/app/tests cisco-client-count:local sh -c "pip install -q pytest && python -m pytest -q tests"
 ```
+
+## License
+
+[MIT](LICENSE). The two files in `proto/ccc/pb/` are Cisco's telemetry
+definitions and stay under their own Apache-2.0 license ([proto/LICENSE](proto/LICENSE)).
